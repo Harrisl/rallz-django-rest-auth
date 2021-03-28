@@ -1,0 +1,19 @@
+# Python bytecode
+__pycache__
+
+# Django dynamic directories
+media
+static
+
+# Environment variables
+.env
+.env.*
+
+# Ignore migrations temporary
+migrations
+
+# Visual studio project configuration file
+.vscode
+
+# Sample simple database - TODO: Consider adding this to Git in future until replace with PostgresSQL
+db.sqlite3

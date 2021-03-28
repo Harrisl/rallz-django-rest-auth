@@ -1,0 +1,36 @@
+Arguments: 
+  C:\Program Files\nodejs\node.exe C:\Users\leron\.yarn\releases\yarn-1.23.0-20200928.1349.cjs add djangorestframework_simplejwt
+
+PATH: 
+  C:\Users\leron\.virtualenvs\rallz-P_Z4IvEl\Scripts;C:\Users\leron\bin;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\local\bin;C:\Program Files\Git\usr\bin;C:\Program Files\Git\usr\bin;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\leron\bin;C:\Program Files\AdoptOpenJDK\jre-15.0.1.9-hotspot\bin;C:\Program Files\Python38\Scripts;C:\Program Files\Python38;C:\Python39\Scripts;C:\Python39;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0;C:\WINDOWS\System32\OpenSSH;C:\Program Files\Microsoft VS Code\bin;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\DockerDesktop\version-bin;C:\Program Files\nodejs;C:\Program Files (x86)\Yarn\bin;C:\Users\leron\AppData\Local\Yarn\bin;G:\Work\Mobile\flutter_windows_1.22.6-stable\flutter\bin;C:\Program Files\Git\usr\bin\vendor_perl;C:\Program Files\Git\usr\bin\core_perl
+
+Yarn version: 
+  1.23.0-20200928.1349
+
+Node version: 
+  14.15.4
+
+Platform: 
+  win32 x64
+
+Trace: 
+  Error: https://registry.yarnpkg.com/djangorestframework_simplejwt: Not found
+      at Request.params.callback [as _callback] (C:\Users\leron\.yarn\releases\yarn-1.23.0-20200928.1349.cjs:78518:18)
+      at Request.self.callback (C:\Users\leron\.yarn\releases\yarn-1.23.0-20200928.1349.cjs:135160:22)
+      at Request.emit (events.js:315:20)
+      at Request.<anonymous> (C:\Users\leron\.yarn\releases\yarn-1.23.0-20200928.1349.cjs:136132:10)
+      at Request.emit (events.js:315:20)
+      at IncomingMessage.<anonymous> (C:\Users\leron\.yarn\releases\yarn-1.23.0-20200928.1349.cjs:136054:12)
+      at Object.onceWrapper (events.js:421:28)
+      at IncomingMessage.emit (events.js:327:22)
+      at endReadableNT (internal/streams/readable.js:1327:12)
+      at processTicksAndRejections (internal/process/task_queues.js:80:21)
+
+npm manifest: 
+  No manifest
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile

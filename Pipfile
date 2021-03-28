@@ -1,0 +1,24 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+django = "*"
+djangorestframework = "*"
+django-cors-headers = "*"
+drf-problems = "*"
+django-organizations = "*"
+django-autoslug = "*"
+django-extensions = "*"
+pillow = "*"
+drf-jwt = "*"
+drf-writable-nested = "*"
+djangorestframework-simplejwt = "*"
+dj-rest-auth = "*"
+django-allauth = "*"
+
+[requires]
+python_version = "3.9"
