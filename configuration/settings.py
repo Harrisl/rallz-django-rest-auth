@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'dj_rest_auth',
     'dj_rest_auth.registration',
+    'organizations',
     'drf_problems',
 
     # Local Apps
@@ -151,8 +152,13 @@ MEDIA_URL = '/media/'
 # https://docs.djangoproject.com/en/3/topics/email/#obtaining-an-instance-of-an-email-backend
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+# dj-rest-auth
 REST_USE_JWT = True
 REST_SESSION_LOGIN = True
+JWT_AUTH_COOKIE = 'rallz-auth'
+JWT_AUTH_REFRESH_COOKIE = 'rallz-refresh-token'
+JWT_AUTH_RETURN_EXPIRATION = True
+
 
 SITE_ID = 1
 
@@ -168,15 +174,6 @@ ACCOUNT_TEMPLATE_EXTENSION = "html"
 # django-allauth configuration for email verification
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
-
-JWT_AUTH_COOKIE = 'rallz-auth'
-JWT_AUTH_REFRESH_COOKIE = 'rallz-refresh-token'
-
-# JWT_AUTH = {
-#     'JWT_AUTH_COOKIE': 'rallz-auth',
-#     'JWT_AUTH_HEADER_PREFIX': 'Bearer',
-#     # 'JWT_EXPIRATION_DELTA': datetime.timedelta(seconds=300),
-# }
 
 # Rest auth user serializer that uses field from altoleap account and USER_FIELDS settings
 REST_AUTH_SERIALIZERS = {

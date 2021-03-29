@@ -9,7 +9,7 @@ from dj_rest_auth.views import (LoginView, LogoutView, PasswordChangeView,
 from dj_rest_auth.registration.views import RegisterView, VerifyEmailView
 from allauth.account.views import confirm_email
 
-from apps.rallz_auth.views import complete_view, null_view
+from apps.rallz_auth.views import complete_view, null_view, RegisterOrganizationView
 
 
 urlpatterns = [
@@ -25,7 +25,11 @@ urlpatterns = [
     path('password/change/', PasswordChangeView.as_view(),
          name='rest_password_change')
 ]
+
+# registration
 urlpatterns += [
+    path('signup/organization/', RegisterOrganizationView.as_view(),
+         name='rest_organization_signup'),
     path('signup/', RegisterView.as_view(), name='rest_signup'),
 
     path('signup/complete/', complete_view,

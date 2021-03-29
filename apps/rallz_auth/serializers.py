@@ -10,13 +10,14 @@ from rest_framework.exceptions import ValidationError
 # from rest_framework_jwt.authentication import JSONWebTokenAuthentication
 from drf_writable_nested.serializers import WritableNestedModelSerializer
 
-from .models import UserProfile
+from .models import UserProfile, Organization
 
 from . import exceptions as auth_exceptions  # UnverifiedEmailException
 
 from dj_rest_auth.serializers import LoginSerializer as DJRESTLoginSerializer
 
 # from .adapter import get_adapter
+
 
 try:
     from allauth.account.adapter import get_adapter
@@ -32,36 +33,39 @@ UserModel = get_user_model()
 logger = logging.getLogger('rallz_auth.Serializers')
 
 
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ('id', 'slug', 'name', 'is_active', 'created', 'modified')
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ('bio', 'photo_url')
 
 
-# class EmailAddressSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = EmailAddress
-#         fields = ('id', 'user', 'email', 'verified', 'primary')
-
-
 class UserSerializer(serializers.ModelSerializer):
     """
     User model w/o password
     """
+   # emails = EmailAddressSerializer(source="emailaddress_set",
+   #                                 required=False, allow_null=True, many=True, read_only=True)
     is_admin = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField(source="get_full_name")
-    is_email_verified = serializers.SerializerMethodField(
-        source="get_is_email_verified")
+    email_verified = serializers.SerializerMethodField(
+        source="get_email_verified")
 
     enabled = serializers.BooleanField(source="is_active", read_only=True)
     profile = UserProfileSerializer(source="userprofile",
                                     required=False)
-    # emails = EmailAddressSerializer(source="emailaddress_set",
-    #                                 required=False, allow_null=True, many=True, read_only=True)
+
+    organizations = OrganizationSerializer(
+        source='organizations_organization', many=True)
 
     class Meta:
         model = UserModel
-        fields = ('id', 'is_admin', 'is_email_verified', 'enabled', 'first_name', 'last_name', 'full_name',
+        fields = ('id', 'is_admin', 'email_verified', 'organizations', 'enabled', 'first_name', 'last_name', 'full_name',
                   'profile', 'email', 'groups', 'user_permissions', 'last_login', 'date_joined')
 
         read_only_fields = ('email', 'groups', 'last_login', 'full_name',
@@ -69,17 +73,20 @@ class UserSerializer(serializers.ModelSerializer):
 
         # dynamic serializer based on fields given to it
     def __init__(self, *args, **kwargs):
-        # Don't pass the 'fields' arg up to the superclass
-        fields = kwargs.get('context').pop('fields', None)
-        # Instantiate the superclass normally
-        super(UserSerializer, self).__init__(*args, **kwargs)
+        try:
+            # Don't pass the 'fields' arg up to the superclass
+            fields = kwargs.get('context').pop('fields', None)
+            # Instantiate the superclass normally
+            super(UserSerializer, self).__init__(*args, **kwargs)
 
-        if fields is not None:
-            # Drop any fields that are not specified in the `fields` argument.
-            allowed = set(fields)
-            existing = set(self.fields)
-            for field_name in existing - allowed:
-                self.fields.pop(field_name)
+            if fields is not None:
+                # Drop any fields that are not specified in the `fields` argument.
+                allowed = set(fields)
+                existing = set(self.fields)
+                for field_name in existing - allowed:
+                    self.fields.pop(field_name)
+        except AttributeError:
+            pass
 
     def get_is_admin(self, user):
         return user.is_staff or user.is_superuser
@@ -87,7 +94,10 @@ class UserSerializer(serializers.ModelSerializer):
     def get_full_name(self, user):
         return user.get_full_name()
 
-    def get_is_email_verified(self, user):
+    # def get_organization(self, user):
+    #     return user.organizations_organization.get()
+
+    def get_email_verified(self, user):
         return user.emailaddress_set.get(user=user, primary=True).verified
 
     def validate_email(self, email):
@@ -137,14 +147,14 @@ class UserSerializer(serializers.ModelSerializer):
 
         profile_data = validated_data.get('userprofile', None)
         if hasattr(instance, 'userprofile'):
-            profile_serialzier = UserProfileSerializer(
+            profile_serializer = UserProfileSerializer(
                 instance.userprofile, data=profile_data)
-            if profile_serialzier.is_valid():
-                profile_serialzier.save()
+            if profile_serializer.is_valid():
+                profile_serializer.save()
         else:
-            profile_serialzier = UserProfileSerializer(data=profile_data)
-            if profile_serialzier.is_valid():
-                profile_serialzier.save(user=instance)
+            profile_serializer = UserProfileSerializer(data=profile_data)
+            if profile_serializer.is_valid():
+                profile_serializer.save(user=instance)
         return instance
 
 
@@ -231,6 +241,7 @@ class LoginSerializer(serializers.Serializer):
 
         if not user:
             # authentication failed
+            # auth_exceptions.AuthenticationFailed
             raise exceptions.AuthenticationFailed(
                 detail=_('Unable to log in with provided credentials.'))
 
@@ -243,11 +254,6 @@ class LoginSerializer(serializers.Serializer):
 
 
 class RegisterSerializer(serializers.Serializer):
-    # username = serializers.CharField(
-    #     max_length=get_username_max_length(),
-    #     min_length=allauth_settings.USERNAME_MIN_LENGTH,
-    #     required=allauth_settings.USERNAME_REQUIRED
-    # )
     email = serializers.EmailField(required=settings.ACCOUNT_EMAIL_REQUIRED)
     first_name = serializers.CharField(required=True, write_only=True, error_messages={
                                        'required': 'First name is required'})
@@ -257,10 +263,6 @@ class RegisterSerializer(serializers.Serializer):
         style={'input_type': 'password'}, write_only=True)
     password2 = serializers.CharField(
         style={'input_type': 'password'}, write_only=True)
-
-    # def validate_username(self, username):
-    #     username = get_adapter().clean_username(username)
-    #     return username
 
     def validate_email(self, email):
         email = get_adapter().clean_email(email)
@@ -276,7 +278,6 @@ class RegisterSerializer(serializers.Serializer):
         if data['password1'] != data['password2']:
             raise auth_exceptions.InvalidPasswordException(
                 _("The two password fields didn't match."))
-            # raise serializers.ValidationError(_("The two password fields didn't match."))
         return data
 
     def custom_signup(self, request, user):
@@ -304,6 +305,59 @@ class RegisterSerializer(serializers.Serializer):
         UserProfile.objects.create(user=saved_user)
         saved_user.save()
         return saved_user
+
+
+class RegisterOrganizationSerializer(RegisterSerializer):
+    organization = serializers.CharField(required=True, write_only=True, error_messages={
+        'required': 'organization is required'})
+    profile = UserProfileSerializer(required=False)
+
+    def get_cleaned_data(self):
+        return {
+            'first_name': self.validated_data.get('first_name', ''),
+            'last_name': self.validated_data.get('last_name', ''),
+            'username': self.validated_data.get('username', ''),
+            'password1': self.validated_data.get('password1', ''),
+            'email': self.validated_data.get('email', ''),
+            'organization': self.validated_data.get('organization', '')
+        }
+
+    def validate_email(self, email):
+        return email
+
+    def save(self, request):
+        adapter = get_adapter()
+        self.cleaned_data = self.get_cleaned_data()
+        email = self.cleaned_data.get('email')
+        organization_name = self.cleaned_data.get('organization')
+        profile_data = self.validated_data.get('profile', None)
+        user = None
+        if email and email_address_exists(email):
+            try:
+                from organizations.utils import create_organization
+                user = UserModel._default_manager.get_by_natural_key(email)
+
+                profile_serializer = UserProfileSerializer(
+                    user.userprofile, data=profile_data)
+                if profile_serializer.is_valid():
+                    profile_serializer.save()
+
+            except UserModel.DoesNotExist:
+                from organizations.utils import create_organization
+                user = adapter.new_user(request)
+                saved_user = adapter.save_user(request, user, self)
+                profile_serializer = UserProfileSerializer(data=profile_data)
+
+                if profile_serializer.is_valid():
+                    profile_serializer.save(user=saved_user)
+        else:
+            setup_user_email(request, user, [])
+
+        organization = create_organization(user, organization_name, org_user_defaults={
+            'is_admin': user.is_staff or user.is_superuser})
+        user.save()
+
+        return user
 
 
 class JWTSerializer(serializers.Serializer):

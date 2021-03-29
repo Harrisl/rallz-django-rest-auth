@@ -1,3 +1,4 @@
+from organizations.models import AbstractOrganization
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.db import models
@@ -44,8 +45,13 @@ class UserManager(BaseUserManager):
             raise ValueError('Superuser must have is_superuser=True.')
         user = self._create_user(email, password, **extra_fields)
         user.emailaddress_set.create(email=email, verified=True, primary=True)
-        user.userprofile.create()
+        user.userprofile.create(user=user)
         return user
+
+
+class Organization(AbstractOrganization):
+    class Meta(AbstractOrganization.Meta):
+        abstract = False
 
 
 class User(AbstractUser):
@@ -54,8 +60,8 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(_('email address'), unique=True)
 
-    # organization = models.ForeignKey(
-    #     'Organization', on_delete=models.SET_NULL, blank=True, null=True)
+    organization = models.ForeignKey(
+        'Organization', on_delete=models.SET_NULL, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
