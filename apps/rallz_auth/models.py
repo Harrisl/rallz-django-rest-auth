@@ -1,4 +1,4 @@
-from organizations.models import AbstractOrganization
+from organizations.models import AbstractOrganization, AbstractOrganizationUser
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.db import models
@@ -10,6 +10,11 @@ from .utils import user_email
 from django.db import transaction
 from .signals import email_confirmed, email_confirmation_sent
 from .managers import EmailAddressManager, EmailConfirmationManager
+
+
+class Organization(AbstractOrganization):
+    class Meta(AbstractOrganization.Meta):
+        abstract = False
 
 
 class UserManager(BaseUserManager):
@@ -49,19 +54,11 @@ class UserManager(BaseUserManager):
         return user
 
 
-class Organization(AbstractOrganization):
-    class Meta(AbstractOrganization.Meta):
-        abstract = False
-
-
 class User(AbstractUser):
     """Custom User model that requires an email address for username and also makes name mandatory."""
 
     username = None
     email = models.EmailField(_('email address'), unique=True)
-
-    organization = models.ForeignKey(
-        'Organization', on_delete=models.SET_NULL, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

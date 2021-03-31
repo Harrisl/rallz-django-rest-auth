@@ -49,13 +49,10 @@ class UserSerializer(serializers.ModelSerializer):
     """
     User model w/o password
     """
-   # emails = EmailAddressSerializer(source="emailaddress_set",
-   #                                 required=False, allow_null=True, many=True, read_only=True)
     is_admin = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField(source="get_full_name")
     email_verified = serializers.SerializerMethodField(
         source="get_email_verified")
-
     enabled = serializers.BooleanField(source="is_active", read_only=True)
     profile = UserProfileSerializer(source="userprofile",
                                     required=False)
@@ -251,6 +248,8 @@ class LoginSerializer(serializers.Serializer):
 
         attrs['user'] = user
         return attrs
+
+# class BaseRegisterSerializer(serializers.Serializer):
 
 
 class RegisterSerializer(serializers.Serializer):

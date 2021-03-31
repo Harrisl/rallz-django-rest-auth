@@ -4,6 +4,7 @@ from django.contrib.auth import (
 )
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.admin.models import LogEntry
 from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -13,16 +14,17 @@ from django.views.decorators.debug import sensitive_post_parameters
 
 from rest_framework import status, viewsets
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView, GenericAPIView, RetrieveUpdateAPIView
+from rest_framework.generics import CreateAPIView, GenericAPIView, RetrieveUpdateAPIView, RetrieveAPIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 
-from .utils import jwt_encode
-from .models import UserProfile
-from .serializers import JWTSerializer, JWTSerializerWithExpiration, LoginSerializer, RegisterOrganizationSerializer, UserSerializer, UserProfileSerializer
-from django.contrib.admin.models import LogEntry
+from .models import UserProfile, Organization
+from .serializers import (JWTSerializer, JWTSerializerWithExpiration, LoginSerializer,
+                          OrganizationSerializer, RegisterOrganizationSerializer, UserSerializer, UserProfileSerializer)
+
+from organizations.models import Organization, OrganizationUser
 
 sensitive_post_parameters_m = method_decorator(
     sensitive_post_parameters(
@@ -49,47 +51,26 @@ class RegisterOrganizationView(RegisterView):
     permission_classes = register_permission_classes()
     throttle_scope = 'dj_rest_auth'
 
-    # def perform_create(self, serializer):
-    #     user = serializer.save(self.request)
-    #     if allauth_settings.EMAIL_VERIFICATION != \
-    #             allauth_settings.EmailVerificationMethod.MANDATORY:
-    #         if getattr(settings, 'REST_USE_JWT', False):
-    #             self.access_token, self.refresh_token = jwt_encode(user)
-    #         else:
-    #             create_token(self.token_model, user, serializer)
 
-    #     complete_signup(self.request._request, user,
-    #                     allauth_settings.EMAIL_VERIFICATION,
-    #                     None)
-    #     return user
+class OrganizationViewSet(RetrieveAPIView):
+    serializer_class = OrganizationSerializer
+    permission_classes = (IsAuthenticated,)  # is owner of organization or user
 
-    # @sensitive_post_parameters_m
-    # def dispatch(self, *args, **kwargs):
-    #     return super(RegisterView, self).dispatch(*args, **kwargs)
+    def get_queryset(self):
+        # user_organisation = OrganizationUser.objects.get(
+        #     user=self.request.user).organization
+        return self.request.user.organizations_organization.all()
+        # return user_organisation
 
-    # def create(self, request, *args, **kwargs):
-    #     serializer = self.get_serializer(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     user = self.perform_create(serializer)
-    #     headers = self.get_success_headers(serializer.data)
+    def get_object(self):
+        user_organisation = OrganizationUser.objects.get(
+            user=self.request.user).organization
+        return user_organisation
 
-    #     return Response(self.get_response_data(user),
-    #                     status=status.HTTP_201_CREATED,
-    #                     headers=headers)
-
-    # def perform_create(self, serializer):
-    #     user = serializer.save(self.request)
-    #     if allauth_settings.EMAIL_VERIFICATION != \
-    #             allauth_settings.EmailVerificationMethod.MANDATORY:
-    #         if getattr(settings, 'REST_USE_JWT', False):
-    #             self.access_token, self.refresh_token = jwt_encode(user)
-    #         else:
-    #             create_token(self.token_model, user, serializer)
-
-    #     complete_signup(self.request._request, user,
-    #                     allauth_settings.EMAIL_VERIFICATION,
-    #                     None)
-    #     return user
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
 
 @api_view()
