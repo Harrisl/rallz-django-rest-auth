@@ -1,23 +1,18 @@
 import logging
 
 from django.conf import settings
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 from django.utils.translation import ugettext_lazy as _
-
-from rest_framework import serializers
-from rest_framework import serializers, exceptions
-from rest_framework.exceptions import ValidationError
-# from rest_framework_jwt.authentication import JSONWebTokenAuthentication
-from drf_writable_nested.serializers import WritableNestedModelSerializer
-
-from .models import UserProfile, Organization
+from rest_framework import exceptions, serializers
 
 from . import exceptions as auth_exceptions  # UnverifiedEmailException
+from .models import Organization, OrganizationUser, UserProfile
 
-from dj_rest_auth.serializers import LoginSerializer as DJRESTLoginSerializer
+# from rest_framework_jwt.authentication import JSONWebTokenAuthentication
+
+# from dj_rest_auth.serializers import LoginSerializer as DJRESTLoginSerializer
 
 # from .adapter import get_adapter
-
 
 try:
     from allauth.account.adapter import get_adapter
@@ -31,12 +26,6 @@ except ImportError:
 UserModel = get_user_model()
 
 logger = logging.getLogger('rallz_auth.Serializers')
-
-
-class OrganizationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Organization
-        fields = ('id', 'slug', 'name', 'is_active', 'created', 'modified')
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -57,12 +46,9 @@ class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(source="userprofile",
                                     required=False)
 
-    organizations = OrganizationSerializer(
-        source='organizations_organization', many=True)
-
     class Meta:
         model = UserModel
-        fields = ('id', 'is_admin', 'email_verified', 'organizations', 'enabled', 'first_name', 'last_name', 'full_name',
+        fields = ('id', 'is_admin', 'email_verified', 'enabled', 'first_name', 'last_name', 'full_name',
                   'profile', 'email', 'groups', 'user_permissions', 'last_login', 'date_joined')
 
         read_only_fields = ('email', 'groups', 'last_login', 'full_name',
@@ -109,26 +95,26 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name': self.validated_data.get('first_name', ''),
             'last_name': self.validated_data.get('last_name', ''),
             'email': self.validated_data.get('email', ''),
-            'password1': self.validated_data.get('password1', generate_random_string(64)),
+            # 'password1': self.validated_data.get('password1', generate_random_string(64)),
         }
 
-    def create(self, validated_data):
-        request = self.context['request']
-        adapter = get_adapter()
-        user = adapter.new_user(request)
-        self.cleaned_data = self.get_cleaned_data()
-        saved_user = adapter.save_user(request, user, self)
-        # profile
-        userprofile = self.validated_data.get('userprofile', {})
-        profile_serializer = UserProfileSerializer(data=userprofile)
-        if profile_serializer.is_valid():
-            profile_serializer.save(user=saved_user)
+    # def create(self, validated_data):
+    #     request = self.context['request']
+    #     adapter = get_adapter()
+    #     user = adapter.new_user(request)
+    #     self.cleaned_data = self.get_cleaned_data()
+    #     saved_user = adapter.save_user(request, user, self)
+    #     # profile
+    #     userprofile = self.validated_data.get('userprofile', {})
+    #     profile_serializer = UserProfileSerializer(data=userprofile)
+    #     if profile_serializer.is_valid():
+    #         profile_serializer.save(user=saved_user)
 
-        # organizations
+    #     # organizations
 
-        # from allauth.account.utils import setup_user_email
-        setup_user_email(request, user, [])
-        return user
+    #     # from allauth.account.utils import setup_user_email
+    #     setup_user_email(request, user, [])
+    #     return user
 
     def update(self, instance, validated_data):
         instance.first_name = validated_data.get(
@@ -160,7 +146,7 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(style={'input_type': 'password'})
 
     def authenticate(self, **kwargs):
-        from django.contrib.auth import authenticate, get_user_model
+        from django.contrib.auth import authenticate
 
         # Did we get back an active user?
         if self._can_user_authenticate(self.context['request'], **kwargs):
@@ -306,59 +292,6 @@ class RegisterSerializer(serializers.Serializer):
         return saved_user
 
 
-class RegisterOrganizationSerializer(RegisterSerializer):
-    organization = serializers.CharField(required=True, write_only=True, error_messages={
-        'required': 'organization is required'})
-    profile = UserProfileSerializer(required=False)
-
-    def get_cleaned_data(self):
-        return {
-            'first_name': self.validated_data.get('first_name', ''),
-            'last_name': self.validated_data.get('last_name', ''),
-            'username': self.validated_data.get('username', ''),
-            'password1': self.validated_data.get('password1', ''),
-            'email': self.validated_data.get('email', ''),
-            'organization': self.validated_data.get('organization', '')
-        }
-
-    def validate_email(self, email):
-        return email
-
-    def save(self, request):
-        adapter = get_adapter()
-        self.cleaned_data = self.get_cleaned_data()
-        email = self.cleaned_data.get('email')
-        organization_name = self.cleaned_data.get('organization')
-        profile_data = self.validated_data.get('profile', None)
-        user = None
-        if email and email_address_exists(email):
-            try:
-                from organizations.utils import create_organization
-                user = UserModel._default_manager.get_by_natural_key(email)
-
-                profile_serializer = UserProfileSerializer(
-                    user.userprofile, data=profile_data)
-                if profile_serializer.is_valid():
-                    profile_serializer.save()
-
-            except UserModel.DoesNotExist:
-                from organizations.utils import create_organization
-                user = adapter.new_user(request)
-                saved_user = adapter.save_user(request, user, self)
-                profile_serializer = UserProfileSerializer(data=profile_data)
-
-                if profile_serializer.is_valid():
-                    profile_serializer.save(user=saved_user)
-        else:
-            setup_user_email(request, user, [])
-
-        organization = create_organization(user, organization_name, org_user_defaults={
-            'is_admin': user.is_staff or user.is_superuser})
-        user.save()
-
-        return user
-
-
 class JWTSerializer(serializers.Serializer):
     """
     Serializer for JWT authentication.
@@ -388,3 +321,62 @@ class JWTSerializerWithExpiration(JWTSerializer):
     """
     access_token_expiration = serializers.DateTimeField()
     refresh_token_expiration = serializers.DateTimeField()
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ('id', 'slug', 'name', 'is_active',
+                  'created_at', 'updated_at')
+
+
+class OrganizationUserSerializer(serializers.ModelSerializer):
+    # email = serializers.EmailField(required=settings.ACCOUNT_EMAIL_REQUIRED)
+
+    # created_at = serializers.DateTimeField()
+    # updated_at = serializers.DateTimeField()
+    # # is_admin = serializers.BooleanField(required=False)  # , allow_null=True
+    # is_owner = serializers.BooleanField(
+    #     required='is_owner')  # , allow_null=True
+    # organization = serializers.IntegerField(source='id')
+    # OrganizationSerializer(required=False, allow_null=True)
+
+    # user = UserSerializer(source='organization_user')
+    is_admin = serializers.SerializerMethodField()
+
+    class Meta:
+        # depth = 1
+        model = OrganizationUser
+        fields = ['id', 'name', 'user', 'is_admin',
+                  'created_at', 'updated_at']
+
+    def get_is_admin(self, value):
+        return value.organization.is_admin(value.user)
+        # return False
+
+
+class OrganizationOwnerSerializer(OrganizationUserSerializer):
+    # organization_user = serializers.IntegerField(source='organization_user.id')
+    # user = serializers.IntegerField(source='organization_user')
+    name = serializers.CharField(source='organization_user.name')
+
+    class Meta(OrganizationUserSerializer.Meta):
+        fields_base = OrganizationUserSerializer.Meta.fields
+        fields = fields_base
+        # ['organization_user', ]
+
+
+class OrganizationSerializerWithUsers(serializers.ModelSerializer):
+
+    users = OrganizationUserSerializer(source="organization_users", many=True)
+    # organization_users
+    # owner = OrganizationOwnerSerializer(source='organizationowner')
+
+    class Meta:
+        # depth = 1
+        model = Organization
+        fields = ('id', 'slug', 'name', 'is_active', 'users',  # 'owner',
+                  'created_at', 'updated_at')
+
+    # def get_users(self, value):
+    #     return UserSerializer(UserModel.objects.filter(organization=self)).data

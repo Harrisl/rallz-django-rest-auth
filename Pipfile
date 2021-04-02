@@ -4,13 +4,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+flake8 = "*"
 
 [packages]
 django = "*"
 djangorestframework = "*"
 django-cors-headers = "*"
 drf-problems = "*"
-django-organizations = "*"
 django-autoslug = "*"
 django-extensions = "*"
 pillow = "*"
@@ -19,6 +19,8 @@ drf-writable-nested = "*"
 djangorestframework-simplejwt = "*"
 dj-rest-auth = "*"
 django-allauth = "*"
+django-multitenant = "*"
+django-environ = "*"
 
 [requires]
 python_version = "3.9"

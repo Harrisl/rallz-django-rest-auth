@@ -2,13 +2,13 @@ import logging
 
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
-from django.utils.encoding import force_text
-from django.utils.translation import ugettext_lazy as _
+# from django.utils.encoding import force_text
+# from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
-from rest_framework.reverse import reverse
+# from rest_framework.reverse import reverse
 from rest_framework.views import exception_handler as drf_exception_handler
 
-from drf_problems.utils import register
+# from drf_problems.utils import register
 
 logger = logging.getLogger('rallz_problems')
 

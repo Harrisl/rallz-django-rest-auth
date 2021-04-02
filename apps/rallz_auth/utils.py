@@ -1,118 +1,83 @@
-from six import string_types
-from importlib import import_module
-from django.core.exceptions import FieldDoesNotExist, ValidationError
-from .adapter import get_adapter
+from itertools import chain
 
 
-def import_callable(path_or_callable):
-    if hasattr(path_or_callable, '__call__'):
-        return path_or_callable
-    else:
-        assert isinstance(path_or_callable, str)
-        package, attr = path_or_callable.rsplit('.', 1)
-        return getattr(import_module(package), attr)
+def default_org_model():
+    """Encapsulates importing the concrete model"""
+    from apps.rallz_auth.models import Organization
+
+    return Organization
 
 
-def jwt_encode(user):
-    from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-    # rest_auth_serializers = getattr(settings, 'REST_AUTH_SERIALIZERS', {})
-
-    # JWTTokenClaimsSerializer = rest_auth_serializers.get(
-    #     'JWT_TOKEN_CLAIMS_SERIALIZER',
-    #     TokenObtainPairSerializer
-    # )
-
-    # TOPS = import_callable(JWTTokenClaimsSerializer)
-
-    refresh = TokenObtainPairSerializer.get_token(user)
-    return refresh.access_token, refresh
-
-
-def user_field(user, field, *args):
+def model_field_names(model):
     """
-    Gets or sets (optional) user model fields. No-op if fields do not exist.
+    Returns a list of field names in the model
+
+    Direct from Django upgrade migration guide.
     """
-    if not field:
-        return
-    User = get_user_model()
-    try:
-        field_meta = User._meta.get_field(field)
-        max_length = field_meta.max_length
-    except FieldDoesNotExist:
-        if not hasattr(user, field):
-            return
-        max_length = None
-    if args:
-        # Setter
-        v = args[0]
-        if v:
-            v = v[0:max_length]
-        setattr(user, field, v)
-    else:
-        # Getter
-        return getattr(user, field)
+    return list(
+        set(
+            chain.from_iterable(
+                (field.name, field.attname)
+                if hasattr(field, "attname")
+                else (field.name,)
+                for field in model._meta.get_fields()
+                if not (field.many_to_one and field.related_model is None)
+            )
+        )
+    )
 
 
-def user_email(user, *args):
-    return user_field(user, "email", *args)
+def create_organization(
+    user,
+    name,
+    is_active=None,
+    org_defaults=None,
+    org_user_defaults=None,
+    **kwargs
+):
+    """
+    Returns a new organization, also creating an initial organization user who
+    is the owner.
 
+    The specific models can be specified if a custom organization app is used.
+    The simplest way would be to use a partial.
 
-# def setup_user_email(request, user, addresses):
-#     """
-#     Creates proper EmailAddress for the user that was just signed
-#     up. Only sets up, doesn't do any other handling such as sending
-#     out email confirmation mails etc.
-#     """
-#     from .models import EmailAddress
+    >>> from organizations.utils import create_organization
+    >>> from myapp.models import Account
+    >>> from functools import partial
+    >>> create_account = partial(create_organization, model=Account)
+    """
+    from apps.rallz_auth.models import OrganizationUser, OrganizationOwner
 
-#     assert not EmailAddress.objects.filter(user=user).exists()
-#     priority_addresses = []
-#     # Is there a stashed e-mail?
-#     adapter = get_adapter(request)
-#     stashed_email = adapter.unstash_verified_email(request)
-#     if stashed_email:
-#         priority_addresses.append(
-#             EmailAddress(user=user, email=stashed_email,
-#                          primary=True, verified=True)
-#         )
-#     email = user_email(user)
-#     if email:
-#         priority_addresses.append(
-#             EmailAddress(user=user, email=email, primary=True, verified=False)
-#         )
-#     addresses, primary = cleanup_email_addresses(
-#         request, priority_addresses + addresses
-#     )
-#     for a in addresses:
-#         a.user = user
-#         a.save()
-#     EmailAddress.objects.fill_cache_for_user(user, addresses)
-#     if primary and email and email.lower() != primary.email.lower():
-#         user_email(user, primary.email)
-#         user.save()
-#     return primary
+    org_model = (
+        kwargs.pop("model", None)
+        or kwargs.pop("org_model", None)
+        or default_org_model()
+    )
 
+    # org_model.owner.related.related_model or
+    org_owner_model = OrganizationOwner
+    org_user_model = OrganizationUser
+    if org_defaults is None:
+        org_defaults = {}
+    if org_user_defaults is None:
+        if "is_admin" in model_field_names(org_user_model):
+            org_user_defaults = {"is_admin": True}
+        else:
+            org_user_defaults = {}
 
-# def email_address_exists(email, exclude_user=None):
-#     # from .account import app_settings as account_settings
-#     from .account.models import EmailAddress
+    # if slug is not None:
+    #     org_defaults.update({"slug": slug})
+    if is_active is not None:
+        org_defaults.update({"is_active": is_active})
 
-#     emailaddresses = EmailAddress.objects
-#     if exclude_user:
-#         emailaddresses = emailaddresses.exclude(user=exclude_user)
-#     ret = emailaddresses.filter(email__iexact=email).exists()
-#     if not ret:
-#         # email_field = account_settings.USER_MODEL_EMAIL_FIELD
-#         email_field = "email"
-#         # if email_field:
-#         users = get_user_model().objects
-#         if exclude_user:
-#             users = users.exclude(pk=exclude_user.pk)
-#         ret = users.filter(**{email_field + "__iexact": email}).exists()
-#     return ret
+    org_defaults.update({"name": name})
+    organization = org_model.objects.create(**org_defaults)
+    user.organization = organization
+    org_user_defaults.update({"organization": organization, "user": user})
+    new_user = org_user_model.objects.create(**org_user_defaults)
 
-
-# try:
-#     from .jwt_auth import JWTCookieAuthentication
-# except ImportError:
-#     pass
+    org_owner_model.objects.create(
+        organization=organization, organization_user=new_user
+    )
+    return organization

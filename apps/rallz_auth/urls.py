@@ -1,22 +1,17 @@
-from django.urls import path, re_path, include
-from rest_framework_simplejwt.views import TokenVerifyView
-from rest_framework import routers
-
-
-from dj_rest_auth.jwt_auth import get_refresh_view
+from allauth.account.views import confirm_email
+from dj_rest_auth.registration.views import RegisterView, VerifyEmailView
 from dj_rest_auth.views import (LoginView, LogoutView, PasswordChangeView,
                                 PasswordResetConfirmView, PasswordResetView,
                                 UserDetailsView)
+from django.urls import path, re_path
 
-from dj_rest_auth.registration.views import RegisterView, VerifyEmailView
-from allauth.account.views import confirm_email
-from .views import (complete_view, null_view,
-                    RegisterOrganizationView, OrganizationViewSet)
+from .views import complete_view, null_view, OrganizationViewSet
 
-# organization_router = routers.DefaultRouter()
-# organization_router.register(
-#     '', OrganizationViewSet.as_view(), basename='organizations')
+from rest_framework.routers import DefaultRouter
 
+router = DefaultRouter()
+router.register(r'organizations', OrganizationViewSet,
+                basename='organizations')
 
 auth_urlpatterns = [
     # URLs that do not require a session or valid token
@@ -34,8 +29,7 @@ auth_urlpatterns = [
 
 # registration
 auth_urlpatterns += [
-    path('signup/organization/', RegisterOrganizationView.as_view(),
-         name='rest_organization_signup'),
+
     path('signup/', RegisterView.as_view(), name='rest_signup'),
 
     path('signup/complete/', complete_view,
@@ -50,11 +44,12 @@ auth_urlpatterns += [
 ]
 
 auth_urlpatterns += [
-    path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-    path('token/refresh/', get_refresh_view().as_view(), name='token_refresh'),
+    # path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # path('token/refresh/', get_refresh_view().as_view(), name='token_refresh'),
 ]
 
 accounts_urlpatterns = [
-    path('organizations/', OrganizationViewSet.as_view(), name='organizations'),
-    #     path('organizations/', include(organization_router.urls)),
+    #     path('organizations/', OrganizationViewSet.as_view(), name='organizations')
+    # path('organizations/', include(OrganizationViewSet))
 ]
+accounts_urlpatterns += router.urls

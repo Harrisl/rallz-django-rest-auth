@@ -1,8 +1,27 @@
-from drf_problems.utils import register_exception, register
+from drf_problems.utils import register
 from rest_framework import exceptions
-# from common.exceptions import DetailDictMixin
 
 # register_exception(InvalidVersionRequestedException) # Or this method directly.
+
+
+class DetailDictMixin:
+    def __init__(self, detail=None, code=None):
+        """
+        Builds a detail dictionary for the error to give more information to API
+        users.
+        """
+        detail_dict = {'detail': self.default_detail,
+                       'code': self.default_code}
+
+        if isinstance(detail, dict):
+            detail_dict.update(detail)
+        elif detail is not None:
+            detail_dict['detail'] = detail
+
+        if code is not None:
+            detail_dict['code'] = code
+
+        super().__init__(detail_dict)
 
 
 @register
@@ -49,11 +68,12 @@ class InvalidPasswordException(exceptions.ParseError):
     description = 'This password is invalid.'
 
 # @register
-# class AuthenticationFailed(DetailDictMixin, exceptions.AuthenticationFailed):
-#     pass
 
 
-class DetailDictMixin:
+class AuthenticationFailed(DetailDictMixin, exceptions.AuthenticationFailed):
+    #     pass
+
+    # class DetailDictMixin:
     def __init__(self, detail=None, code=None):
         """
         Builds a detail dictionary for the error to give more information to API
@@ -73,5 +93,26 @@ class DetailDictMixin:
         super().__init__(detail_dict)
 
 
-class AuthenticationFailed(DetailDictMixin, exceptions.AuthenticationFailed):
+# class AuthenticationFailed(DetailDictMixin, exceptions.AuthenticationFailed):
+    # pass
+
+
+class OwnershipRequired(exceptions.APIException):
+    # status_code = status.HTTP_400_BAD_REQUEST
+    # default_detail = _('Malformed request.')
+    # default_code = 'parse_error'
+    """
+    Exception to raise if the owner is being removed before the
+    organization.
+    """
+
+    pass
+
+
+class OrganizationMismatch(exceptions.APIException):
+    """
+    Exception to raise if an organization user from a different
+    organization is assigned to be an organization's owner.
+    """
+
     pass

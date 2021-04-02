@@ -10,14 +10,21 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
-import drf_problems
-from datetime import timedelta
-from pathlib import Path
 from os.path import join
+from pathlib import Path
+
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# reading environment file
+env = environ.Env(
+    DJANGO_ALLOWED_HOSTS=(list, ['127.0.0.1', 'localhost', '192.168.2.11'])
+)
+
+root_path = environ.Path(__file__) - 2
+environ.Env.read_env(env_file=root_path('.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
@@ -54,13 +61,12 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'dj_rest_auth',
     'dj_rest_auth.registration',
-    'organizations',
     'drf_problems',
 
     # Local Apps
     'apps.rallz_auth',
+    'apps.rallz_auth_multitenant',
 ]
-
 
 AUTH_USER_MODEL = 'rallz_auth.User'
 
@@ -71,6 +77,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # 'apps.rallz_auth_multitenant.middleware.AuthenticationMiddlewareTenant',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -100,10 +107,11 @@ WSGI_APPLICATION = 'configuration.wsgi.application'
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': env.db('DATABASE_URL', default='sqlite:///db.sqlite3')
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.sqlite3',
+    #     'NAME': BASE_DIR / 'db.sqlite3',
+    # }
 }
 
 
