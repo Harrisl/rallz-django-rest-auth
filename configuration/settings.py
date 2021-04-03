@@ -64,11 +64,11 @@ INSTALLED_APPS = [
     'drf_problems',
 
     # Local Apps
-    'apps.rallz_auth',
     'apps.rallz_auth_multitenant',
+    # 'apps.rallz_auth',
 ]
 
-AUTH_USER_MODEL = 'rallz_auth.User'
+AUTH_USER_MODEL = 'rallz_auth_multitenant.TenantUser'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -77,7 +77,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    # 'apps.rallz_auth_multitenant.middleware.AuthenticationMiddlewareTenant',
+    'apps.rallz_auth_multitenant.middleware.MultitenantMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -156,6 +156,11 @@ STATIC_URL = '/static/'
 MEDIA_ROOT = join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
+# login resiect
+LOGIN_REDIRECT_URL = 'rest_signin'  # 'api/v1/auth/signin'
+EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = 'api/v1/auth/signin'
+EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = 'api/v1/auth/signin'
+
 # email backend
 # https://docs.djangoproject.com/en/3/topics/email/#obtaining-an-instance-of-an-email-backend
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
@@ -185,15 +190,15 @@ ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 
 # Rest auth user serializer that uses field from altoleap account and USER_FIELDS settings
 REST_AUTH_SERIALIZERS = {
-    'USER_DETAILS_SERIALIZER': 'apps.rallz_auth.serializers.UserSerializer',
-    'LOGIN_SERIALIZER': 'apps.rallz_auth.serializers.LoginSerializer',
-    # 'PASSWORD_RESET_SERIALIZER': 'apps.rallz_auth.serializers.PasswordResetSerializer',
+    'USER_DETAILS_SERIALIZER': 'apps.rallz_auth_multitenant.serializers.UserSerializer',
+    'LOGIN_SERIALIZER': 'apps.rallz_auth_multitenant.serializers.LoginSerializer',
+    # 'PASSWORD_RESET_SERIALIZER': 'apps.rallz_auth_multitenant.serializers.PasswordResetSerializer',
 
 }
 
 # Registration serializer to add fields such as first_name and last_name serializer for all auth
 REST_AUTH_REGISTER_SERIALIZERS = {
-    'REGISTER_SERIALIZER': 'apps.rallz_auth.serializers.RegisterSerializer',
+    'REGISTER_SERIALIZER': 'apps.rallz_auth_multitenant.serializers.RegisterSerializer',
 }
 
 # Rest framework render options

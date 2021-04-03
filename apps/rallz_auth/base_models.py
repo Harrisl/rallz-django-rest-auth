@@ -1,12 +1,44 @@
 # # from django.conf import settings
 # # from django.contrib.auth import get_user_model
-# from django.db import models
-# from django.utils.translation import gettext_lazy as _
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+from .managers import ActiveOrgManager, OrgManager
 
 # # from apps.rallz_auth.base_fields import SlugField
 # # from apps.rallz_auth import exceptions as auth_exceptions
 
 # # USER_MODEL = get_user_model()
+
+
+class AbstractBaseOrganization(models.Model):
+    """
+    The umbrella object with which users can be associated.
+    An organization can have multiple users but only one who can be designated
+    the owner user.
+    """
+
+    name = models.CharField(max_length=200, help_text=_(
+        "The name of the organization"))
+    is_active = models.BooleanField(default=True)
+
+    objects = OrgManager()
+    active = ActiveOrgManager()
+
+    class Meta:
+        abstract = True
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SharedTimestampModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True, editable=False)
+    updated_at = models.DateTimeField(auto_now=True, editable=False)
+
+    class Meta:
+        abstract = True
 
 
 # # class SharedTimestampModel(models.Model):
@@ -37,20 +69,6 @@
 
 # #     class Meta:
 # #         abstract = True
-
-# class OrgManager(models.Manager):
-#     def get_for_user(self, user):
-#         return self.get_queryset().filter(users=user)
-
-
-# class ActiveOrgManager(OrgManager):
-#     """
-#     A more useful extension of the default manager which returns querysets
-#     including only active organizations
-#     """
-
-#     def get_queryset(self):
-#         return super().get_queryset().filter(is_active=True)
 
 
 # class AbstractBaseOrganization(models.Model):

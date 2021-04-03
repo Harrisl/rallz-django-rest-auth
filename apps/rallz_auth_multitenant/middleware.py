@@ -1,59 +1,85 @@
-from django.contrib.auth.middleware import get_user
-from django.utils.deprecation import MiddlewareMixin
+import logging
+from django.contrib.auth import get_user
 from django.utils.functional import SimpleLazyObject
-from django_multitenant.utils import set_current_tenant
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.utils.deprecation import MiddlewareMixin
+from django_multitenant.utils import (get_current_tenant, unset_current_tenant,
+                                      get_tenant_column, set_current_tenant)
+import apps.rallz_auth_multitenant.exceptions as auth_exceptions
+logger = logging.getLogger(__name__)
 
-# from rest_framework_jwt.authentication import JSONWebTokenAuthentication
+
+def get_request_user(request):
+    if not hasattr(request, '_cached_user'):
+        request._cached_user = get_user(request)
+    return request._cached_user
 
 
 def get_tenant_for_user(user):
-    return user.organization.tenantorganization
+    return user.organization
 
 
-class AuthenticationMiddlewareTenant(MiddlewareMixin):
-    # def process_request(self, request):
-    #     assert hasattr(request, 'session'), (
-    #         "The Django authentication middleware requires session middleware "
-    #         "to be installed. Edit your MIDDLEWARE setting to insert "
-    #         "'django.contrib.sessions.middleware.SessionMiddleware' before "
-    #         "'django.contrib.auth.middleware.AuthenticationMiddleware'."
-    #     )
-    #     request.user = SimpleLazyObject(lambda: get_user(request))
-
+class MultitenantMiddleware(MiddlewareMixin):
     # def __init__(self, get_response):
     #     self.get_response = get_response
+    #     super().__init__(get_response)
 
     # def __call__(self, request):
     #     if request.user and not request.user.is_anonymous:
-    #         set_current_tenant(request.user.employee.company)
-    #     return self.get_response(request)
+    #         current_tenant = get_tenant_for_user(request.user)
+    #         set_current_tenant(current_tenant)
+    #         # return self.get_response(request)
+    #         return super().__call__(request)
+
+    # TODO: Looks like the request.user is already set maybe we can just use it w/o using the JwtAuthentication
+    #       though for other users like mobile then wed have to use different token authentication
 
     def process_request(self, request):
-        request.user = SimpleLazyObject(
-            lambda: self.__class__.get_request_user(request))
+        if not hasattr(self, 'authenticator'):
 
-        # print(request.user.organization)
+            from rest_framework_simplejwt.authentication import \
+                JWTAuthentication
+            # authenticator = JWTAuthentication()
+            self.authenticator = JWTAuthentication()
+            try:
+                # uses token
+                # user = authenticator.authenticate(request)
+                user = self.authenticator.authenticate(request)
+                if user is None:
+                    # uses api browser from django session
+                    # TODO: maybe should remove/improve as is uses 'AnonymousUser'
+                    user = SimpleLazyObject(
+                        lambda: get_request_user(request)) or request.user
+                if user.is_anonymous is True:
+                    raise auth_exceptions.InvalidUserException
+            except:
+                from rest_framework.authtoken.models import Token
+                # Check if request uses Django auth token
+                auth_header = request.META.get('HTTP_AUTHORIZATION')
+                if auth_header and auth_header.find('Token') != -1:
+                    keyword, token, = auth_header.split()
+                    if keyword == 'Token':
+                        try:
+                            user = Token.objects.get(key=token).user
+                            return user
+                        except Token.DoesNotExist:
+                            pass
+            try:
+                # Assuming your app has a function to get the tenant associated for a user
+                # current_tenant = get_tenant_for_user(user)
+                if user and not user.is_anonymous:
+                    if(user.organization != get_current_tenant()):
+                        unset_current_tenant()
+                        set_current_tenant(user.organization)
 
-        if request.user.is_authenticated:
-            if not request.user.is_staff:
-                current_tenant = get_tenant_for_user(request.user)
-                set_current_tenant(current_tenant)
+                    print('get_current_tenant', get_current_tenant())
+
+            except Exception as e:
+                # TODO: handle failure
+                logger.error('Unable to set tenant value '
+                             'tenant not available on user')
+                return
 
     def process_response(self, request, response):
-        set_current_tenant(None)
-
+        # set_current_tenant(None)
+        unset_current_tenant()
         return response
-
-    @staticmethod
-    def get_request_user(request):
-        user = get_user(request)
-
-        if user.is_authenticated:
-            return user
-
-        # Check if request uses jwt authentication
-        jwt_authentication = JWTAuthentication()
-        # if jwt_authentication.get_jwt_value(request):
-        user, _ = jwt_authentication.authenticate(request)
-        return user

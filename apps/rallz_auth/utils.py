@@ -1,11 +1,10 @@
 from itertools import chain
 
+# def default_org_model():
+#     """Encapsulates importing the concrete model"""
+#     from apps.rallz_auth.models import Organization
 
-def default_org_model():
-    """Encapsulates importing the concrete model"""
-    from apps.rallz_auth.models import Organization
-
-    return Organization
+#     return Organization
 
 
 def model_field_names(model):
@@ -47,17 +46,35 @@ def create_organization(
     >>> from functools import partial
     >>> create_account = partial(create_organization, model=Account)
     """
-    from apps.rallz_auth.models import OrganizationUser, OrganizationOwner
+    # from apps.rallz_auth.models import OrganizationOwner, OrganizationUser
+    from apps.rallz_auth_multitenant.models import (TenantOrganization,
+                                                    TenantOrganizationOwner,
+                                                    TenantOrganizationUser)
 
-    org_model = (
-        kwargs.pop("model", None)
-        or kwargs.pop("org_model", None)
-        or default_org_model()
-    )
+    # org_model = (
+    #     kwargs.pop("model", None)
+    #     or kwargs.pop("org_model", None)
+    #     or default_org_model()
+    # )
+
+    use_tenant = kwargs.pop('use_tenant', False)
+
+    defaultOrg = TenantOrganization  # if use_tenant else default_org_model()
+    defaultOrgUser = TenantOrganizationUser  # if use_tenant else OrganizationUser
+    # if use_tenant else OrganizationOwner
+    defaultOrgOwner = TenantOrganizationOwner
 
     # org_model.owner.related.related_model or
-    org_owner_model = OrganizationOwner
-    org_user_model = OrganizationUser
+    # org_owner_model = OrganizationOwner
+    org_owner_model = (kwargs.pop("owner_model", None)
+                       or kwargs.pop("org_owner_model", None)
+                       or defaultOrgOwner
+                       )
+    # org_user_model = OrganizationUser
+    org_user_model = (kwargs.pop("user_model", None)
+                      or kwargs.pop("org_user_model", None)
+                      or defaultOrgUser
+                      )
     if org_defaults is None:
         org_defaults = {}
     if org_user_defaults is None:
@@ -72,8 +89,13 @@ def create_organization(
         org_defaults.update({"is_active": is_active})
 
     org_defaults.update({"name": name})
-    organization = org_model.objects.create(**org_defaults)
+    organization = defaultOrg.objects.create(**org_defaults)
     user.organization = organization
+
+    if(use_tenant):
+        from django_multitenant.utils import set_current_tenant
+        set_current_tenant(organization)
+
     org_user_defaults.update({"organization": organization, "user": user})
     new_user = org_user_model.objects.create(**org_user_defaults)
 
