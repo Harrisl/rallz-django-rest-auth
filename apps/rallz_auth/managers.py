@@ -1,80 +1,55 @@
-from datetime import timedelta
-
+from django.contrib.auth import models
+from django.contrib.auth.models import BaseUserManager
 from django.db import models
-from django.db.models import Q
-from django.utils import timezone
-
-# from . import app_settings
 
 
-class EmailAddressManager(models.Manager):
-    def can_add_email(self, user):
-        ret = True
-        # if app_settings.MAX_EMAIL_ADDRESSES:
-        count = self.filter(user=user).count()
-        ret = count < 3  # app_settings.MAX_EMAIL_ADDRESSES
-        return ret
+class UserManager(BaseUserManager):
+    """User Model manager for custom User model with no username field."""
 
-    def add_email(self, request, user, email, confirm=False, signup=False):
-        email_address, created = self.get_or_create(
-            user=user, email__iexact=email, defaults={"email": email}
-        )
+    use_in_migrations = True
 
-        if created and confirm:
-            email_address.send_confirmation(request, signup=signup)
+    def _create_user(self, email, password, **extra_fields):
+        """Create and save a User with the given email and password."""
+        if not email:
+            raise ValueError('The given email must be set')
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
 
-        return email_address
+        user.save(using=self._db)
+        return user
 
-    def get_primary(self, user):
-        try:
-            return self.get(user=user, primary=True)
-        except self.model.DoesNotExist:
-            return None
+    def create_user(self, email, password=None, **extra_fields):
+        """Create and save a regular User with the given email and password."""
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
+        return self._create_user(email, password, **extra_fields)
 
-    def get_users_for(self, email):
-        # this is a list rather than a generator because we probably want to
-        # do a len() on it right away
-        return [
-            address.user for address in self.filter(verified=True, email__iexact=email)
-        ]
+    def create_superuser(self, email, password, **extra_fields):
+        """Create and save a SuperUser with the given email and password."""
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
 
-    def fill_cache_for_user(self, user, addresses):
-        """
-        In a multi-db setup, inserting records and re-reading them later
-        on may result in not being able to find newly inserted
-        records. Therefore, we maintain a cache for the user so that
-        we can avoid database access when we need to re-read..
-        """
-        user._emailaddress_cache = addresses
-
-    def get_for_user(self, user, email):
-        cache_key = "_emailaddress_cache"
-        addresses = getattr(user, cache_key, None)
-        if addresses is None:
-            ret = self.get(user=user, email__iexact=email)
-            # To avoid additional lookups when e.g.
-            # EmailAddress.set_as_primary() starts touching self.user
-            ret.user = user
-            return ret
-        else:
-            for address in addresses:
-                if address.email.lower() == email.lower():
-                    return address
-            raise self.model.DoesNotExist()
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+        user = self._create_user(email, password, **extra_fields)
+        user.emailaddress_set.create(email=email, verified=True, primary=True)
+        user.save()
+        return user
 
 
-class EmailConfirmationManager(models.Manager):
-    def all_expired(self):
-        return self.filter(self.expired_q())
+class OrgManager(models.Manager):
+    def get_for_user(self, user):
+        return self.get_queryset().filter(users=user)
 
-    def all_valid(self):
-        return self.exclude(self.expired_q())
 
-    def expired_q(self):
-        sent_threshold = timezone.now() - timedelta(
-            days=3  # app_settings.EMAIL_CONFIRMATION_EXPIRE_DAYS
-        )
-        return Q(sent__lt=sent_threshold)
+class ActiveOrgManager(OrgManager):
+    """
+    A more useful extension of the default manager which returns querysets
+    including only active organizations
+    """
 
-    def delete_expired_confirmations(self):
-        self.all_expired().delete()
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)

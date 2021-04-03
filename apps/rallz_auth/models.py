@@ -1,94 +1,247 @@
-from organizations.models import AbstractOrganization, AbstractOrganizationUser
-from django.dispatch import receiver
-from django.db.models.signals import post_save
-from django.db import models
-from django.contrib.auth.models import AbstractUser, BaseUserManager
-from django.utils.translation import ugettext_lazy as _
+# from django.contrib.auth.models import AbstractUser  # , BaseUserManager
+# from django.db import models
+# from django.utils.translation import ugettext_lazy as _
+
+# from apps.rallz_auth import exceptions as auth_exceptions
+# from apps.rallz_auth.base_fields import SlugField
+# from apps.rallz_auth.base_models import (AbstractBaseOrganization,
+#                                          SharedTimestampModel)
+# from apps.rallz_auth.managers import UserManager
 
 
-from .utils import user_email
-from django.db import transaction
-from .signals import email_confirmed, email_confirmation_sent
-from .managers import EmailAddressManager, EmailConfirmationManager
+# class User(AbstractUser):
+#     """Custom User model that requires an email address for username and also makes name mandatory."""
+
+#     username = None
+#     email = models.EmailField(_('email address'), unique=True)
+
+#     organization = models.ForeignKey(
+#         'Organization', related_name='users', on_delete=models.SET_NULL, blank=True, null=True)
+
+#     USERNAME_FIELD = 'email'
+#     REQUIRED_FIELDS = ['first_name', 'last_name']
+
+#     objects = UserManager()
+
+#     class Meta():
+#         ordering = ('first_name',)
 
 
-class Organization(AbstractOrganization):
-    class Meta(AbstractOrganization.Meta):
-        abstract = False
+# class UserProfile(models.Model):
+#     user = models.OneToOneField(
+#         'User', verbose_name=_("user"), on_delete=models.CASCADE)
+#     bio = models.TextField(blank=True)
+#     photo_url = models.ImageField(upload_to='avatars/', blank=True)
+
+#     def __str__(self):
+#         return "{0} profile".format(self.user.get_full_name())
 
 
-class UserManager(BaseUserManager):
-    """User Model manager for custom User model with no username field."""
+# class Organization(SharedTimestampModel, AbstractBaseOrganization):
+#     slug = SlugField(
+#         max_length=200,
+#         blank=False,
+#         editable=True,
+#         populate_from="name",
+#         unique=True,
+#         help_text=_(
+#             "The name in all lowercase, suitable for URL identification"),
+#     )
 
-    use_in_migrations = True
+#     class Meta(AbstractBaseOrganization.Meta):
+#         abstract = False
+#         verbose_name = _("organization")
+#         verbose_name_plural = _("organizations")
 
-    def _create_user(self, email, password, **extra_fields):
-        """Create and save a User with the given email and password."""
-        if not email:
-            raise ValueError('The given email must be set')
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
+#     def __str__(self):
+#         return self.name
 
-        user.save(using=self._db)
-        return user
+#     def is_member(self, user):
+#         return True if user in self.users.all() else False
 
-    def create_user(self, email, password=None, **extra_fields):
-        """Create and save a regular User with the given email and password."""
-        extra_fields.setdefault('is_staff', False)
-        extra_fields.setdefault('is_superuser', False)
-        return self._create_user(email, password, **extra_fields)
+#     def add_user(self, user, is_admin=False):
+#         """
+#         Adds a new user and if the first user makes the user an admin and
+#         the owner.
+#         """
+#         users_count = self.users.all().count()
+#         if users_count == 0:
+#             is_admin = True
+#         # org_user = self._org_user_model.objects.create(
+#         org_user = OrganizationUser.objects.create(
+#             user=user, organization=self, is_admin=is_admin
+#         )
+#         if users_count == 0:
+#             # TODO get specific org user?
+#             # self.owner.objects.create(
+#             OrganizationOwner.objects.create(
+#                 organization=self, organization_user=org_user
+#             )
+#         # User added signal
+#         return org_user
 
-    def create_superuser(self, email, password, **extra_fields):
-        """Create and save a SuperUser with the given email and password."""
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
+#     def remove_user(self, user):
+#         """
+#         Deletes a user from an organization.
+#         """
+#         org_user = OrganizationUser.objects.get(
+#             user=user, organization=self)
+#         org_user.delete()
 
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser must have is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True.')
-        user = self._create_user(email, password, **extra_fields)
-        user.emailaddress_set.create(email=email, verified=True, primary=True)
-        user.userprofile.create(user=user)
-        return user
+#         # User removed signal
+#         # user_removed.send(sender=self, user=user)
+
+#     def get_or_add_user(self, user, **kwargs):
+#         """
+#         Adds a new user to the organization, and if it's the first user makes
+#         the user an admin and the owner. Uses the `get_or_create` method to
+#         create or return the existing user.
+#         `user` should be a user instance, e.g. `auth.User`.
+#         Returns the same tuple as the `get_or_create` method, the
+#         `OrganizationUser` and a boolean value indicating whether the
+#         OrganizationUser was created or not.
+#         """
+#         is_admin = kwargs.pop("is_admin", False)
+#         users_count = self.users.all().count()
+#         if users_count == 0:
+#             is_admin = True
+
+#         org_user, created = OrganizationUser.objects.get_or_create(
+#             organization=self, user=user, defaults={"is_admin": is_admin}
+#         )
+#         if users_count == 0:
+#             OrganizationOwner.objects.create(
+#                 organization=self, organization_user=org_user
+#             )
+#         # if created:
+#             # User added signal
+#             # user_added.send(sender=self, user=user)
+#         return org_user, created
+
+#     def change_owner(self, new_owner):
+#         """
+#         Changes ownership of an organization.
+#         """
+#         old_owner = self.owner.organization_user
+#         self.owner.organization_user = new_owner
+#         self.owner.save()
+
+#         # Owner changed signal
+#         # owner_changed.send(sender=self, old=old_owner, new=new_owner)
+
+#     def is_admin(self, user):
+#         """
+#         Returns True is user is an admin in the organization, otherwise false
+#         """
+#         return (
+#             True if self.organization_users.filter(
+#                 user=user, is_admin=True) else False
+#         )
+
+#     def is_owner(self, user):
+#         """
+#         Returns True is user is the organization's owner, otherwise false
+#         """
+#         return self.owner.organization_user.user == user
 
 
-class User(AbstractUser):
-    """Custom User model that requires an email address for username and also makes name mandatory."""
+# class OrganizationUser(SharedTimestampModel):
+#     """
+#     Abstract OrganizationUser model
+#     """
+#     is_admin = models.BooleanField(default=False)
 
-    username = None
-    email = models.EmailField(_('email address'), unique=True)
+#     user = models.OneToOneField(
+#         User,
+#         related_name="organization_user",
+#         on_delete=models.CASCADE,
+#     )
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = []
+#     organization = models.ForeignKey(
+#         Organization,
+#         related_name="organization_users",
+#         on_delete=models.CASCADE,
+#     )
 
-    objects = UserManager()
+#     class Meta():
+#         unique_together = ("user", "organization")
+#         ordering = ("organization", "user",)
+#         verbose_name = _("organization user")
+#         verbose_name_plural = _("organization users")
 
-    class Meta:
-        ordering = ('first_name',)
+#     def __str__(self):
+#         return "{0} ({1})".format(
+#             self.name if self.user.is_active else self.user.email,
+#             self.organization.name,
+#         )
+
+#     @property
+#     def name(self):
+#         """
+#         Returns the connected user's full name or string representation if the
+#         full name method is unavailable (e.g. on a custom user class).
+#         """
+#         try:
+#             return self.user.get_full_name()
+#         except AttributeError:
+#             return str(self.user)
+
+#     def delete(self, using=None):
+#         """
+#         If the organization user is also the owner, this should not be deleted
+#         unless it's part of a cascade from the Organization.
+#         If there is no owner then the deletion should proceed.
+#         """
+#         # from organizations.exceptions import OwnershipRequired
+
+#         try:
+#             if self.organization.owner.organization_user.pk == self.pk:
+#                 raise auth_exceptions.OwnershipRequired(
+#                     _(
+#                         "Cannot delete organization owner "
+#                         "before organization or transferring ownership."
+#                     )
+#                 )
+#         # TODO This line presumes that OrgOwner model can't be modified
+#         except OrganizationOwner.DoesNotExist:
+#             pass
+#         super().delete(using=using)
 
 
-class UserProfile(models.Model):
-    user = models.OneToOneField(
-        User, verbose_name=_("user"), on_delete=models.CASCADE)
-    bio = models.TextField(blank=True)
-    photo_url = models.ImageField(upload_to='avatars/', blank=True)
-#     phone = PhoneNumberField(blank=True)
-#     dob = models.DateField(blank=True)
+# class OrganizationOwner(SharedTimestampModel):
+#     """
+#     Abstract OrganizationOwner model
+#     """
+#     organization_user = models.OneToOneField(
+#         OrganizationUser,
+#         on_delete=models.CASCADE,
+#     )
 
-    def __str__(self):
-        return "{0} profile".format(self.user.get_full_name())
+#     organization = models.OneToOneField(
+#         Organization,
+#         on_delete=models.CASCADE,
+#     )
 
+#     class Meta:
+#         abstract = False
+#         verbose_name = _("organization owner")
+#         verbose_name_plural = _("organization owners")
 
-class Contact(models.Model):
-    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
+#     def __str__(self):
+#         return "{0}: {1}".format(self.organization, self.organization_user)
 
-# @receiver(post_save, sender=User)
-# def create_user_profile(sender, **kwargs):
-#     user = kwargs["instance"]
-#     if kwargs["created"]:
-#         user.emailaddress_set.create(
-#             email=user.email, verified=False, primary=True)
-#         user_profile = UserProfile(user=user)
-#         user_profile.save()
+#     def save(self, *args, **kwargs):
+#         """
+#         Extends the default save method by verifying that the chosen
+#         organization user is associated with the organization.
+#         Method validates against the primary key of the organization because
+#         when validating an inherited model it may be checking an instance of
+#         `Organization` against an instance of `CustomOrganization`. Mutli-table
+#         inheritance means the database keys will be identical though.
+#         """
+#         # from organizations.exceptions import OrganizationMismatch
+
+#         if self.organization_user.organization.pk != self.organization.pk:
+#             raise auth_exceptions.OrganizationMismatch
+#         else:
+#             super().save(*args, **kwargs)
